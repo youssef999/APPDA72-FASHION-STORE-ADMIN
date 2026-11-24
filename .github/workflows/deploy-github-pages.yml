@@ -6,16 +6,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,16 +23,15 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter build web --release --base-href "/APPDA72-FASHION-STORE-ADMIN/"
-      - uses: actions/upload-pages-artifact@v3
+      - name: Prepare Pages artifacts
+        run: |
+          touch build/web/.nojekyll
+          # SPA fallback for deep links on GitHub Pages
+          cp build/web/index.html build/web/404.html
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: build/web
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: build/web
+          publish_branch: gh-pages
+          force_orphan: true

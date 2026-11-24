@@ -15,8 +15,8 @@ flutter pub get
 flutter build web --release --base-href "/APPDA72-FASHION-STORE-ADMIN/"
 ```
 
-فرع `gh-pages` يحتوي مخرجات `build/web`.  
-أو فعّل **Settings → Pages → Source: GitHub Actions** ليستخدم workflow التلقائي.
+فرع `gh-pages` يحتوي مخرجات `build/web` (Pages Source = Deploy from branch → `gh-pages` / root).  
+كل push على `main` يشغّل workflow يبني Flutter Web ويرفعه على `gh-pages`.
 
 ## تشغيل محلي
 
