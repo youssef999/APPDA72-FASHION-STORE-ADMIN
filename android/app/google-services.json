@@ -1,0 +1,82 @@
+{
+  "project_info": {
+    "project_number": "603181766410",
+    "project_id": "pageecommerceapp",
+    "storage_bucket": "pageecommerceapp.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:603181766410:android:70bc63ebe8f239b6c10cf3",
+        "android_client_info": {
+          "package_name": "com.adminApp.shop24"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "603181766410-4sdr3331i9dbirj82qvk693o31aee3b3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBf7PutCrqHWZuITepbb4vmvHq59xNUTlE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "603181766410-4sdr3331i9dbirj82qvk693o31aee3b3.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "603181766410-hesc10kghnfmset7i3g853s604q4n5qp.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.thehatch-store.app"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:603181766410:android:e9cfe89c27ce1b80c10cf3",
+        "android_client_info": {
+          "package_name": "com.multiTest.app24"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "603181766410-4sdr3331i9dbirj82qvk693o31aee3b3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBf7PutCrqHWZuITepbb4vmvHq59xNUTlE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "603181766410-4sdr3331i9dbirj82qvk693o31aee3b3.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "603181766410-hesc10kghnfmset7i3g853s604q4n5qp.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.thehatch-store.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

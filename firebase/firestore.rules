@@ -1,0 +1,236 @@
+rules_version = '2';
+
+// APPDA72 — Firestore security
+// Admin = Auth user with document `admins/{lowercase email}`.
+// Cloud Functions / Admin SDK bypass these rules.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function hasEmail() {
+      return isSignedIn() && request.auth.token.email != null;
+    }
+
+    function authEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function isAdmin() {
+      return hasEmail()
+        && exists(/databases/$(database)/documents/admins/$(authEmail()));
+    }
+
+    function isOwnerUid(uid) {
+      return isSignedIn() && uid is string && uid == request.auth.uid;
+    }
+
+    function onlyKeys(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    // VIP / order tallies are owned by Cloud Functions (Admin SDK), not the shop client.
+    function touchesVipFields() {
+      return request.resource.data.diff(resource.data)
+        .affectedKeys()
+        .hasAny(['isVip', 'orderCount', 'vipSince']);
+    }
+
+    function createsWithVipFields() {
+      return request.resource.data.keys().hasAny(['isVip', 'orderCount', 'vipSince']);
+    }
+
+    // ---- Admin gate (self-read only; never client-writable) ----
+    match /admins/{email} {
+      allow read: if hasEmail() && authEmail() == email;
+      allow write: if false;
+    }
+
+    // ---- Public catalog / storefront (admin writes) ----
+    match /products/{id} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      // Shopper: stock deduct + review aggregates only.
+      allow update: if isAdmin()
+        || (isSignedIn()
+          && onlyKeys(['stock', 'quant', 'soldCount', 'rate', 'ratingCount']));
+    }
+
+    match /cat/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /brands/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /carsoul/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /del/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /drops/{dropId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /reminders/{uid} {
+        allow read: if isAdmin() || isOwnerUid(uid);
+        allow create, update: if isOwnerUid(uid)
+          && request.resource.data.uid == request.auth.uid;
+        allow delete: if isOwnerUid(uid);
+      }
+    }
+
+    // Branding / commerce / app flags — public read, admin write
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Publishable payment config only
+    match /store_settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Secrets — NEVER for shop clients
+    match /private_settings/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ---- Shopper profile ----
+    match /Users/{uid} {
+      allow read: if isAdmin() || isOwnerUid(uid);
+      allow create: if isOwnerUid(uid)
+        && !createsWithVipFields()
+        && (!('uid' in request.resource.data)
+          || request.resource.data.uid == request.auth.uid);
+      allow update: if isAdmin()
+        || (isOwnerUid(uid)
+          && !touchesVipFields()
+          && (!('uid' in request.resource.data)
+            || request.resource.data.uid == request.auth.uid));
+      allow delete: if isAdmin() || isOwnerUid(uid);
+    }
+
+    // ---- Orders (checkout requires Auth) ----
+    match /orders/{orderId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.user_uid == request.auth.uid)
+        || (hasEmail() && resource.data.user_email == authEmail());
+      allow create: if isSignedIn()
+        && request.resource.data.user_uid == request.auth.uid
+        && request.resource.data.status == 'waiting'
+        && (!hasEmail()
+          || request.resource.data.user_email == authEmail());
+      allow update, delete: if isAdmin();
+    }
+
+    // ---- Favorites ----
+    match /fav/{id} {
+      allow read: if isAdmin()
+        || (hasEmail() && resource.data.user_email == authEmail());
+      allow create: if hasEmail()
+        && request.resource.data.user_email == authEmail();
+      allow update: if false;
+      allow delete: if isAdmin()
+        || (hasEmail() && resource.data.user_email == authEmail());
+    }
+
+    // ---- Coupons (only public + own-target docs; no fishing other users' gifts) ----
+    match /coupons/{code} {
+      allow read: if isAdmin()
+        || (isSignedIn()
+          && (resource.data.target == 'all'
+            || resource.data.target == request.auth.uid));
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (isSignedIn()
+          && (resource.data.target == 'all'
+            || resource.data.target == request.auth.uid)
+          && onlyKeys(['usedBy', 'usedCount']));
+    }
+
+    // ---- Payments (client creates pending + status patches; CF verifies) ----
+    match /payments/{paymentId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.userUid == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.userUid == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update: if isAdmin()
+        || (isSignedIn()
+          && resource.data.userUid == request.auth.uid
+          && request.resource.data.userUid == resource.data.userUid);
+      allow delete: if isAdmin();
+    }
+
+    // ---- Inbox notifications ----
+    // Queries must filter by target / targetEmail / broadcast (see mobile listeners).
+    match /notifications/{id} {
+      allow read: if isAdmin()
+        || (resource.data.target == 'all'
+          && (!('targetEmail' in resource.data)
+            || resource.data.targetEmail == ''
+            || resource.data.targetEmail == null))
+        || (isSignedIn() && resource.data.target == request.auth.uid)
+        || (hasEmail() && resource.data.targetEmail == authEmail());
+      allow write: if isAdmin();
+    }
+
+    // ---- Reviews (public read; author create) ----
+    match /product_reviews/{id} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.userUid == request.auth.uid
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5;
+      allow update, delete: if isAdmin()
+        || (isSignedIn() && resource.data.userUid == request.auth.uid);
+    }
+
+    // ---- Feedback ----
+    match /feedback/{id} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.userUid == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.userUid == request.auth.uid
+        && request.resource.data.status == 'new';
+      allow update, delete: if isAdmin();
+    }
+
+    // ---- Stock waitlist ----
+    match /stockWaitlist/{id} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.active == true;
+      allow update: if isAdmin()
+        || (isSignedIn()
+          && resource.data.uid == request.auth.uid
+          && request.resource.data.uid == resource.data.uid);
+      allow delete: if isAdmin()
+        || (isSignedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    // ---- Cart snapshots (doc id = uid) ----
+    match /cartSnapshots/{uid} {
+      allow read, write: if isAdmin() || isOwnerUid(uid);
+    }
+
+    // Deny anything not listed above
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

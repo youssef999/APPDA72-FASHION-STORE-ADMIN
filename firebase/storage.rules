@@ -1,0 +1,36 @@
+rules_version = '2';
+
+// APPDA72 — Storage security
+// Public read for storefront images; write only for admins (admins/{email}).
+service firebase.storage {
+  match /b/{bucket}/o {
+    function hasEmail() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+
+    function isAdmin() {
+      return hasEmail()
+        && firestore.exists(
+          /databases/(default)/documents/admins/$(request.auth.token.email.lower())
+        );
+    }
+
+    // Compressed product/category ≈ ≤180KB; branding may keep source PNG/WebP.
+    function isAllowedImage() {
+      return request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(webp|jpeg|png)');
+    }
+
+    function isPublicFolder(folder) {
+      return folder in ['products', 'categories', 'branding'];
+    }
+
+    match /{folder}/{allPaths=**} {
+      allow read: if isPublicFolder(folder);
+      allow create, update: if isAdmin()
+        && isPublicFolder(folder)
+        && isAllowedImage();
+      allow delete: if isAdmin() && isPublicFolder(folder);
+    }
+  }
+}
